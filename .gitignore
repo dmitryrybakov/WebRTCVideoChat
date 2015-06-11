@@ -1,0 +1,6 @@
+DerivedData
+xcuserdata
+xcshareddata
+MobileDemo/Pods
+Podfile.lock
+MobileDemo/MobileDemo.xcworkspace
