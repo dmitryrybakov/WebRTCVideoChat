@@ -8,15 +8,16 @@
 
 import UIKit
 
-class ViewController: UIViewController, RTCPeerConnectionDelegate {
+class ViewController: UIViewController, RTCPeerConnectionDelegate, RTCSessionDescriptionDelegate {
     
     var peerFactory = RTCPeerConnectionFactory()
     var iceServers = Array<RTCICEServer>()
     var peerConnections = [String:RTCPeerConnection]()
     var peerConnectionsSettings = [String:AnyObject]()
+    var activePeerId:String?
     
-    @IBOutlet weak var someoneVideoView: UIView!
-    @IBOutlet weak var myVideoView: UIView!
+    @IBOutlet weak var someoneVideoView: RTCEAGLVideoView!
+    @IBOutlet weak var myVideoView: RTCEAGLVideoView!
     
     func commonInit() {        
         self.iceServers.append(RTCICEServer(URI:NSURL(string: "stun:stun.l.google.com:19302"), username: "", password: ""))
@@ -92,13 +93,21 @@ class ViewController: UIViewController, RTCPeerConnectionDelegate {
         var peer = self.peerFactory.peerConnectionWithICEServers(self.iceServers,
             constraints:mediaConstraintsWithVideo(withVideo, sizeConstraints:true),
             delegate:self)
+        
         peer.addStream(localStream)
         self.peerConnections[perrId] = peer
+        activePeerId = perrId
         self.peerConnectionsSettings[perrId] = NSNumber(bool: withVideo)
+        peer.createOfferWithDelegate(self, constraints:mediaConstraintsWithVideo(withVideo, sizeConstraints:true));
     }
 
     @IBAction func startStopCallAction(sender: AnyObject) {
-        startCallImpl(true)
+        startCallImpl(false)
+    }
+    
+    func disconnect() {
+        self.peerConnections.removeAll(keepCapacity: true);
+        self.peerConnectionsSettings.removeAll(keepCapacity: true);
     }
     
 //MARK: - RTCPeerConnectionDelegate
@@ -106,6 +115,7 @@ class ViewController: UIViewController, RTCPeerConnectionDelegate {
     }
     
     func peerConnection(peerConnection: RTCPeerConnection!, addedStream stream: RTCMediaStream!) {
+        stream.videoTracks.last?.addRenderer(self.myVideoView)
     }
     
     func peerConnection(peerConnection: RTCPeerConnection!, removedStream stream: RTCMediaStream!) {
@@ -120,10 +130,34 @@ class ViewController: UIViewController, RTCPeerConnectionDelegate {
     func peerConnection(peerConnection: RTCPeerConnection!, iceGatheringChanged newState: RTCICEGatheringState) {
     }
     
-    func peerConnection(peerConnection: RTCPeerConnection, didOpenDataChannel dataChannel: RTCDataChannel) {
+    func peerConnection(peerConnection: RTCPeerConnection!, didOpenDataChannel dataChannel: RTCDataChannel) {
     }
     
-    func peerConnection(peerConnection: RTCPeerConnection, gotICECandidate candidate: RTCICECandidate) {
+    func peerConnection(peerConnection: RTCPeerConnection!, gotICECandidate candidate: RTCICECandidate) {
+    }
+//MARK: - RTCSessionDescriptionDelegate
+    // Called when creating a session.
+    func peerConnection(peerConnection:RTCPeerConnection!, didCreateSessionDescription sdp: RTCSessionDescription!, error: NSError!) -> Void {
+        dispatch_async(dispatch_get_main_queue()) {
+            if (error != nil) {
+                print("Failed to create session description. Error: \(error)")
+                self.disconnect()
+            }
+        }
+        peerConnection.setLocalDescriptionWithDelegate(self, sessionDescription:sdp)
+    }
+    
+    // Called when setting a local or remote description.
+    func peerConnection(peerConnection: RTCPeerConnection!, didSetSessionDescriptionWithError error:NSError!) {
+        if (peerConnection.signalingState == .HaveLocalOffer) {
+            // Send offer through the signaling channel of our application
+        }
+        else if (peerConnection.signalingState == .HaveRemoteOffer) {
+            // If we have a remote offer we should add it to the peer connection
+            let withVideo:NSNumber = self.peerConnectionsSettings[activePeerId!] as! NSNumber
+            peerConnection.createAnswerWithDelegate(self,
+                constraints:mediaConstraintsWithVideo(withVideo.boolValue, sizeConstraints:true))
+        }
     }
 
 }
