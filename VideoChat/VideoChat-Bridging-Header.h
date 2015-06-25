@@ -25,6 +25,8 @@
 #import "RTCSessionDescription.h"
 #import "RTCTypes.h"
 #import "RTCEAGLVideoView.h"
+#import "TLKSocketIOSignaling.h"
+#import "TLKMediaStream.h"
 
 #import <AVFoundation/AVFoundation.h>
 #import <AVFoundation/AVCaptureDevice.h>
